@@ -9,6 +9,7 @@ import aiohttp
 
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 
 from config import BASE_DIR, Config
 from image_generator import ImageGenerator
@@ -37,7 +38,11 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[b
     """Один цикл: взять одну новую новость → картинка → пост → сохранить хэш.
     Возвращает None, если кандидатов нет; True, если пост вышел; False, если ошибка."""
     store = PostedStore(config.POSTED_JSON_PATH)
-    tg_session = AiohttpSession(api=config.TELEGRAM_API_BASE)
+    api_server = TelegramAPIServer(
+        base=f"{config.TELEGRAM_API_BASE}/bot{{token}}/{{method}}",
+        file=f"{config.TELEGRAM_API_BASE}/file/bot{{token}}/{{path}}",
+    )
+    tg_session = AiohttpSession(api=api_server)
     bot = Bot(token=config.TELEGRAM_BOT_TOKEN, session=tg_session)
     generator = ImageGenerator(
         api_key=config.OPENAI_API_KEY,
