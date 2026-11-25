@@ -1,0 +1,44 @@
+name: tamarkin-bot
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # каждый час по UTC
+  workflow_dispatch: {}  # ручной запуск кнопкой в интерфейсе
+
+permissions:
+  contents: write  # нужен, чтобы коммитить posted.json обратно в репозиторий
+
+concurrency:
+  group: tamarkin-bot
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Установить зависимости
+        run: pip install -r requirements.txt
+
+      - name: Проверить новости и опубликовать пост
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          RSS_URLS: "https://vc.ru/rss/all,https://habr.com/ru/rss/news/?fl=ru"
+          IMAGE_MODE: "rss"
+          CHECK_INTERVAL_MINUTES: "0"  # один прогон и выход
+          LOG_LEVEL: "INFO"
+        run: python main.py
+
+      - name: Сохранить список опубликованных
+        run: |
+          git config user.name "tamarkin-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add posted.json
+          git diff --staged --quiet || (git commit -m "обновление posted.json [skip ci]" && git push)
