@@ -2,6 +2,7 @@ import html
 import logging
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile
 
 from image_generator import retry_async
@@ -45,6 +46,35 @@ class TelegramPoster:
             parse_mode="HTML",
         )
 
+    async def _send_with_topic_fix(
+        self, send_call, error_tag: str
+    ) -> bool:
+        """Отправка с авто-лечением TOPIC_CLOSED: открываем «Общее» и повторяем."""
+        try:
+            await send_call()
+            return True
+        except TelegramBadRequest as exc:
+            if "TOPIC_CLOSED" not in str(exc):
+                logger.error("%s: ошибка Telegram: %s", error_tag, exc)
+                return False
+            logger.warning("Общая тема канала закрыта — открываю и повторяю...")
+            try:
+                await self.bot.reopen_general_forum_topic(chat_id=self.channel_id)
+            except Exception as reopen_exc:
+                logger.error(
+                    "%s: не удалось открыть общую тему (нужны права админа). "
+                    "Открой её вручную: канал → Обсуждения → «Общее» → Открыть тему. "
+                    "Причина: %s", error_tag, reopen_exc
+                )
+                return False
+            try:
+                await send_call()
+                logger.info("Пост прошёл после открытия общей темы.")
+                return True
+            except Exception as retry_exc:
+                logger.error("%s: повторная отправка не удалась: %s", error_tag, retry_exc)
+                return False
+
     async def post(
         self, title: str, summary: str, link: str, image_bytes: bytes
     ) -> bool:
@@ -52,9 +82,12 @@ class TelegramPoster:
         caption = self.build_caption(title, summary, link)
         photo = BufferedInputFile(file=image_bytes, filename="news.jpg")
         try:
-            await self._send_photo(photo, caption)
-            logger.info("Пост опубликован в канал %s: %s", self.channel_id, title)
-            return True
+            ok = await self._send_with_topic_fix(
+                lambda: self._send_photo(photo, caption), "Пост с картинкой"
+            )
+            if ok:
+                logger.info("Пост опубликован в канал %s: %s", self.channel_id, title)
+            return ok
         except Exception as exc:
             logger.error("Ошибка отправки поста в Telegram: %s", exc)
             return False
@@ -62,11 +95,15 @@ class TelegramPoster:
     async def post_text(self, title: str, summary: str, link: str) -> bool:
         """Резервная публикация без картинки, если изображение получить не удалось."""
         try:
-            await self._send_message(self.build_caption(title, summary, link))
-            logger.info(
-                "Текстовый пост опубликован в канал %s: %s", self.channel_id, title
+            ok = await self._send_with_topic_fix(
+                lambda: self._send_message(self.build_caption(title, summary, link)),
+                "Текстовый пост",
             )
-            return True
+            if ok:
+                logger.info(
+                    "Текстовый пост опубликован в канал %s: %s", self.channel_id, title
+                )
+            return ok
         except Exception as exc:
             logger.error("Ошибка отправки текстового поста в Telegram: %s", exc)
             return False
