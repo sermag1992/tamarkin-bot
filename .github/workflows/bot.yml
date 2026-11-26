@@ -2,7 +2,7 @@ name: tamarkin-bot
 
 on:
   schedule:
-    - cron: "0 * * * *"  # каждый час по UTC
+    - cron: "23 * * * *"  # :23 — вне пиков начала часа, когда GitHub роняет cron-запуски
   workflow_dispatch: {}  # ручной запуск кнопкой в интерфейсе
 
 permissions:
