@@ -15,6 +15,7 @@ from config import BASE_DIR, Config
 from image_generator import ImageGenerator
 from news_parser import fetch_news, PostedStore
 from telegram_poster import TelegramPoster
+from text_hook import HookWriter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,6 +68,20 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[b
         item = news_items[0]  # не более одной новости за запуск
         logger.info("Выбрана новость: %s", item.title)
 
+        # Хук: цепляющая строка и переписанная суть (фолбэк — исходный текст)
+        hook = ""
+        body = item.summary
+        if config.TEXT_HOOK_ENABLED:
+            try:
+                hook_text = await HookWriter().write(session, item.title, item.summary)
+                hook = hook_text["hook"]
+                body = hook_text["body"]
+                logger.info("Хук сгенерирован: %s", hook)
+            except Exception as exc:
+                logger.warning(
+                    "Хук не сгенерирован (%s), публикую исходный текст новости.", exc
+                )
+
         image_bytes: Optional[bytes] = None
 
         if config.IMAGE_MODE == "rss" and item.image_url:
@@ -98,11 +113,11 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[b
         success = False
         if image_bytes:
             success = await poster.post(
-                item.title, item.summary, item.link, image_bytes
+                item.title, body, item.link, image_bytes, hook=hook
             )
         else:
             logger.warning("Изображение недоступно, публикую пост без картинки.")
-            success = await poster.post_text(item.title, item.summary, item.link)
+            success = await poster.post_text(item.title, body, item.link, hook=hook)
 
         if success:
             store.mark_posted(item.news_hash)

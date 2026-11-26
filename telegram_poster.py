@@ -16,18 +16,26 @@ class TelegramPoster:
         self.channel_id = channel_id
 
     @staticmethod
-    def build_caption(title: str, summary: str, link: str) -> str:
-        """HTML-подпись к посту: жирный заголовок, суть, ссылка на источник."""
+    def build_caption(
+        title: str, summary: str, link: str, hook: str = ""
+    ) -> str:
+        """HTML-подпись к посту: хук-крючок, жирный заголовок, суть, ссылка.
+        Укладывается в лимит Telegram для подписи к фото (1024 символа)."""
         title = title if len(title) <= 100 else title[:97] + "..."
-        summary = summary if len(summary) <= 600 else summary[:597] + "..."
         esc_title = html.escape(title)
-        esc_summary = html.escape(summary)
         esc_link = html.escape(link, quote=True)
-        return (
-            f"<b>{esc_title}</b>\n\n"
-            f"{esc_summary}\n\n"
-            f'Источник: <a href="{esc_link}">Читать оригинал</a>'
-        )
+
+        hook_part = f"<i>{html.escape(hook.strip()[:90])}</i>\n\n" if hook else ""
+        header = f"<b>{esc_title}</b>\n\n"
+        footer = f"\n\nИсточник: <a href=\"{esc_link}\">Читать оригинал</a>"
+
+        budget = 1024 - len(hook_part) - len(header) - len(footer)
+        body = html.escape(summary)
+        if len(body) > budget:
+            cut = body[: budget - 1].rsplit(" ", 1)[0].rstrip(" ,;:-–—")
+            body = cut + "…"
+
+        return hook_part + header + body + footer
 
     @retry_async(retries=3, base_delay=1.0)
     async def _send_photo(self, photo: BufferedInputFile, caption: str) -> None:
@@ -76,10 +84,10 @@ class TelegramPoster:
                 return False
 
     async def post(
-        self, title: str, summary: str, link: str, image_bytes: bytes
+        self, title: str, summary: str, link: str, image_bytes: bytes, hook: str = ""
     ) -> bool:
         """Публикация поста с картинкой. Возвращает True при успехе."""
-        caption = self.build_caption(title, summary, link)
+        caption = self.build_caption(title, summary, link, hook)
         photo = BufferedInputFile(file=image_bytes, filename="news.jpg")
         try:
             ok = await self._send_with_topic_fix(
@@ -92,11 +100,13 @@ class TelegramPoster:
             logger.error("Ошибка отправки поста в Telegram: %s", exc)
             return False
 
-    async def post_text(self, title: str, summary: str, link: str) -> bool:
+    async def post_text(self, title: str, summary: str, link: str, hook: str = "") -> bool:
         """Резервная публикация без картинки, если изображение получить не удалось."""
         try:
             ok = await self._send_with_topic_fix(
-                lambda: self._send_message(self.build_caption(title, summary, link)),
+                lambda: self._send_message(
+                    self.build_caption(title, summary, link, hook)
+                ),
                 "Текстовый пост",
             )
             if ok:

@@ -10,6 +10,7 @@
 |---|---|
 | `config.py` | чтение настроек из переменных окружения / `.env` |
 | `news_parser.py` | RSS, фильтры, дедупликация, обложки |
+| `text_hook.py` | цепляющая строка-хук и переписанная суть поста (Pollinations text API) |
 | `image_generator.py` | картинка: обложка RSS / Pollinations / OpenAI, retry-логика |
 | `telegram_poster.py` | форматирование и отправка поста в канал |
 | `main.py` | цикл или одиночный прогон (`CHECK_INTERVAL_MINUTES=0`) |
@@ -46,6 +47,7 @@ python main.py
 | `TELEGRAM_CHANNEL_ID` | — | обязательно |
 | `RSS_URLS` | — | обязательно, ленты через запятую |
 | `IMAGE_MODE` | `rss` | `rss` (обложка статьи) / `pollinations` / `openai` |
+| `TEXT_HOOK_ENABLED` | `1` | цепляющая строка-хук в начале поста (`0` — выключить) |
 | `CHECK_INTERVAL_MINUTES` | `60` | период цикла; `0` — одиночный прогон |
 | `MAX_NEWS_AGE_HOURS` | `24` | свежесть новостей |
 | `KEYWORDS` | см. config.py | тематический фильтр, через запятую |

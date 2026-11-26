@@ -24,6 +24,7 @@ class Config:
     STOPWORDS: List[str]
     MAX_NEWS_AGE_HOURS: int
     CHECK_INTERVAL_MINUTES: int
+    TEXT_HOOK_ENABLED: bool
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -67,4 +68,8 @@ class Config:
             STOPWORDS=[k.strip() for k in stopwords_raw.split(",") if k.strip()],
             MAX_NEWS_AGE_HOURS=int(max_age_raw),
             CHECK_INTERVAL_MINUTES=int(interval_raw),
+            TEXT_HOOK_ENABLED=(os.getenv("TEXT_HOOK_ENABLED") or "1")
+            .strip()
+            .lower()
+            in ("1", "true", "yes", "on"),
         )
