@@ -25,6 +25,10 @@ class Config:
     MAX_NEWS_AGE_HOURS: int
     CHECK_INTERVAL_MINUTES: int
     TEXT_HOOK_ENABLED: bool
+    PENDING_JSON_PATH: str
+    CANDIDATES_PER_RUN: int
+    MAX_PENDING: int
+    PENDING_TTL_HOURS: int
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -50,6 +54,9 @@ class Config:
         posted_path = os.getenv("POSTED_JSON_PATH") or "posted.json"
         if not os.path.isabs(posted_path):
             posted_path = os.path.join(BASE_DIR, posted_path)
+        pending_path = os.getenv("PENDING_JSON_PATH") or "pending.json"
+        if not os.path.isabs(pending_path):
+            pending_path = os.path.join(BASE_DIR, pending_path)
 
         api_base = (os.getenv("TELEGRAM_API_BASE") or "https://api.telegram.org").rstrip("/")
 
@@ -72,4 +79,8 @@ class Config:
             .strip()
             .lower()
             in ("1", "true", "yes", "on"),
+            PENDING_JSON_PATH=pending_path,
+            CANDIDATES_PER_RUN=int(os.getenv("CANDIDATES_PER_RUN") or "3"),
+            MAX_PENDING=int(os.getenv("MAX_PENDING") or "5"),
+            PENDING_TTL_HOURS=int(os.getenv("PENDING_TTL_HOURS") or "24"),
         )

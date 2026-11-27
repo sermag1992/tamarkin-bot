@@ -1,9 +1,7 @@
 import asyncio
-import html
 import logging
 import os
 import sys
-from typing import Optional
 
 import aiohttp
 
@@ -11,11 +9,17 @@ from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.telegram import TelegramAPIServer
 
+from approvals import (
+    PendingStore,
+    expire_pending,
+    load_json_file,
+    process_updates,
+    send_candidates,
+)
 from config import BASE_DIR, Config
 from image_generator import ImageGenerator
 from news_parser import fetch_news, PostedStore
 from telegram_poster import TelegramPoster
-from text_hook import HookWriter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,16 +39,19 @@ def setup_file_logging() -> None:
     logging.getLogger().addHandler(handler)
 
 
-async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[bool]:
-    """Один цикл: взять одну новую новость → картинка → пост → сохранить хэш.
-    Возвращает None, если кандидатов нет; True, если пост вышел; False, если ошибка."""
+async def run_once(session: aiohttp.ClientSession, config: Config) -> None:
+    """Один цикл: выполнить решения владельца → прислать ему новые кандидаты.
+    В канал публикуется только то, что владелец одобрил в личке."""
     store = PostedStore(config.POSTED_JSON_PATH)
+    pending = PendingStore(config.PENDING_JSON_PATH)
+    state_dir = os.path.dirname(config.PENDING_JSON_PATH)
+    owner_path = os.path.join(state_dir, "owner.json")
+
     api_server = TelegramAPIServer(
         base=f"{config.TELEGRAM_API_BASE}/bot{{token}}/{{method}}",
         file=f"{config.TELEGRAM_API_BASE}/file/bot{{token}}/{{path}}",
     )
-    tg_session = AiohttpSession(api=api_server)
-    bot = Bot(token=config.TELEGRAM_BOT_TOKEN, session=tg_session)
+    bot = Bot(token=config.TELEGRAM_BOT_TOKEN, session=AiohttpSession(api=api_server))
     generator = ImageGenerator(
         api_key=config.OPENAI_API_KEY,
         model=config.OPENAI_IMAGE_MODEL,
@@ -53,7 +60,30 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[b
     poster = TelegramPoster(bot=bot, channel_id=config.TELEGRAM_CHANNEL_ID)
 
     try:
-        news_items = await fetch_news(
+        # 1) сначала выполняем накопившиеся решения владельца (кнопки, команды)
+        await process_updates(
+            bot, session, config, pending, store, generator, poster, owner_path
+        )
+        # 2) чистим очередь от устаревших кандидатов
+        await expire_pending(bot, pending, config)
+
+        # 3) шлём новые кандидаты, если есть куда и есть место в очереди
+        owner = load_json_file(owner_path, None)
+        if not owner:
+            logger.info(
+                "Владелец ещё не привязан. Напиши боту /start в Telegram — "
+                "после этого новости будут приходить в личку на одобрение."
+            )
+            return
+
+        free = config.MAX_PENDING - len(pending.items)
+        if free <= 0:
+            logger.info(
+                "В очереди уже %d кандидатов — жду решения по ним.", len(pending.items)
+            )
+            return
+
+        news = await fetch_news(
             session,
             config.RSS_URLS,
             store,
@@ -61,75 +91,18 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> Optional[b
             stopwords=config.STOPWORDS,
             max_age_hours=config.MAX_NEWS_AGE_HOURS,
         )
-        if not news_items:
-            logger.info("Новых новостей для публикации не найдено.")
-            return None
+        batch = [
+            i for i in news if i.news_hash not in pending.hashes()
+        ][: min(config.CANDIDATES_PER_RUN, free)]
+        if not batch:
+            logger.info("Новых новостей для одобрения нет.")
+            return
 
-        item = news_items[0]  # не более одной новости за запуск
-        logger.info("Выбрана новость: %s", item.title)
-
-        # Хук: цепляющая строка и переписанная суть (фолбэк — исходный текст)
-        hook = ""
-        body = item.summary
-        if config.TEXT_HOOK_ENABLED:
-            try:
-                hook_text = await HookWriter().write(session, item.title, item.summary)
-                hook = hook_text["hook"]
-                body = hook_text["body"]
-                logger.info("Хук сгенерирован: %s", hook)
-            except Exception as exc:
-                logger.warning(
-                    "Хук не сгенерирован (%s), публикую исходный текст новости.", exc
-                )
-
-        image_bytes: Optional[bytes] = None
-
-        if config.IMAGE_MODE == "rss" and item.image_url:
-            logger.info("Загрузка изображения из RSS: %s", item.image_url)
-            image_bytes = await generator.download_image(session, item.image_url)
-
-        if (
-            image_bytes is None
-            and config.IMAGE_MODE == "openai"
-            and config.OPENAI_API_KEY
-        ):
-            logger.info("Генерация изображения через OpenAI...")
-            prompt = generator.build_prompt(item.title, item.summary)
-            try:
-                image_bytes = await generator.generate(session, prompt)
-            except Exception as exc:
-                logger.warning(
-                    "OpenAI не справился (%s), пробуем Pollinations.ai...", exc
-                )
-
-        if image_bytes is None:
-            logger.info("Генерация изображения через Pollinations.ai...")
-            prompt = generator.build_prompt(item.title, item.summary)
-            try:
-                image_bytes = await generator.generate_pollinations(session, prompt)
-            except Exception as exc:
-                logger.error("Pollinations.ai не сгенерировал изображение: %s", exc)
-
-        success = False
-        if image_bytes:
-            success = await poster.post(
-                item.title, body, item.link, image_bytes, hook=hook
-            )
-        else:
-            logger.warning("Изображение недоступно, публикую пост без картинки.")
-            success = await poster.post_text(item.title, body, item.link, hook=hook)
-
-        if success:
-            store.mark_posted(item.news_hash)
-            store.save()
-            logger.info("Хэш сохранён, новость больше не будет повторяться: %s", item.title)
-        else:
-            logger.error("Пост не опубликован: %s", item.title)
-        return success
+        sent = await send_candidates(bot, session, config, pending, batch, owner)
+        logger.info("Отправлено кандидатов владельцу: %d", sent)
 
     except Exception as exc:
-        logger.error("Ошибка обработки новости: %s", exc)
-        return False
+        logger.error("Ошибка цикла: %s", exc)
     finally:
         await bot.session.close()
 
@@ -143,16 +116,13 @@ async def main() -> None:
 
     if config.CHECK_INTERVAL_MINUTES <= 0:
         # Одноразовый режим: один проход и выход (для GitHub Actions / хостинга).
-        # Код выхода 1, если новость была, но опубликовать не удалось.
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            posted = await run_once(session, config)
-        if posted is False:
-            sys.exit(1)
+            await run_once(session, config)
         return
 
     interval_minutes = max(config.CHECK_INTERVAL_MINUTES, 1)
     logger.info(
-        "Бот запущен. Проверка новостей каждые %d мин. Канал: %s",
+        "Бот запущен. Проверка каждые %d мин. Канал: %s",
         interval_minutes,
         config.TELEGRAM_CHANNEL_ID,
     )

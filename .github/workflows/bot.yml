@@ -2,11 +2,11 @@ name: tamarkin-bot
 
 on:
   schedule:
-    - cron: "23 * * * *"  # :23 — вне пиков начала часа, когда GitHub роняет cron-запуски
+    - cron: "11,41 * * * *"  # каждые 30 минут, вне пиковых минут :00/:30
   workflow_dispatch: {}  # ручной запуск кнопкой в интерфейсе
 
 permissions:
-  contents: write  # нужен, чтобы коммитить posted.json обратно в репозиторий
+  contents: write  # нужен, чтобы коммитить posted.json и очередь одобрений
 
 concurrency:
   group: tamarkin-bot
@@ -26,7 +26,7 @@ jobs:
       - name: Установить зависимости
         run: pip install -r requirements.txt
 
-      - name: Проверить новости и опубликовать пост
+      - name: Обработать решения владельца и отправить кандидатов
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
@@ -37,9 +37,9 @@ jobs:
           LOG_LEVEL: "INFO"
         run: python main.py
 
-      - name: Сохранить список опубликованных
+      - name: Сохранить состояние (дедупликация и очередь одобрений)
         run: |
           git config user.name "tamarkin-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add posted.json
-          git diff --staged --quiet || (git commit -m "обновление posted.json [skip ci]" && git push)
+          git add posted.json pending.json updates_offset.json owner.json
+          git diff --staged --quiet || (git commit -m "обновление состояния [skip ci]" && git push)
