@@ -372,8 +372,11 @@ async def send_candidates(
 ) -> int:
     """Рассылает новые кандидаты владельцу в личку с кнопками решения."""
     sent = 0
+    existing_nums = [i.get("num", 0) for i in pending.items]
+    next_num = max(existing_nums, default=0)
     for item in batch:
-        num = len(pending.items) + 1
+        next_num += 1
+        num = next_num
         entry = {
             "id8": item.news_hash[:8],
             "hash": item.news_hash,
