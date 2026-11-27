@@ -20,6 +20,7 @@ from config import BASE_DIR, Config
 from image_generator import ImageGenerator
 from news_parser import fetch_news, PostedStore
 from telegram_poster import TelegramPoster
+from text_hook import RelevanceChecker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,11 +92,34 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> None:
             stopwords=config.STOPWORDS,
             max_age_hours=config.MAX_NEWS_AGE_HOURS,
         )
-        batch = [
-            i for i in news if i.news_hash not in pending.hashes()
-        ][: min(config.CANDIDATES_PER_RUN, free)]
+        fresh = [i for i in news if i.news_hash not in pending.hashes()]
+        # Семантический фильтр: LLM одним запросом отсекает нерелевантное
+        # ДО отправки владельцу
+        if config.LLM_FILTER_ENABLED and fresh:
+            to_check = fresh[: config.CANDIDATES_PER_RUN * 3]
+            try:
+                verdicts = await RelevanceChecker().check_batch(session, to_check)
+                relevant = []
+                for idx, i in enumerate(to_check, start=1):
+                    verdict = verdicts.get(idx)
+                    if verdict is None:
+                        logger.warning("Фильтр не дал вердикта, пропускаю дальше: %s", i.title)
+                        relevant.append(i)
+                    elif verdict["fit"]:
+                        relevant.append(i)
+                    else:
+                        logger.info(
+                            "Отфильтровано как нерелевантное: %s — %s",
+                            i.title, verdict["reason"],
+                        )
+                fresh = relevant
+            except Exception as exc:
+                # фильтр сломался — не теряем новости, владелец всё равно решает сам
+                logger.warning("Фильтр недоступен (%s), отправляю без фильтрации.", exc)
+
+        batch = fresh[: min(config.CANDIDATES_PER_RUN, free)]
         if not batch:
-            logger.info("Новых новостей для одобрения нет.")
+            logger.info("Новых релевантных новостей для одобрения нет.")
             return
 
         sent = await send_candidates(bot, session, config, pending, batch, owner)

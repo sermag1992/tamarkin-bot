@@ -64,6 +64,7 @@ python main.py
 | `PENDING_TTL_HOURS` | `24` | сколько ждать решения по кандидату |
 | `IMAGE_MODE` | `rss` | `rss` (обложка) / `pollinations` / `openai` |
 | `TEXT_HOOK_ENABLED` | `1` | хук-строка и переписанная суть |
+| `LLM_FILTER_ENABLED` | `1` | LLM отсекает новости не по теме канала до отправки владельцу |
 | `CHECK_INTERVAL_MINUTES` | `60` | период цикла; `0` — одиночный прогон (CI) |
 | `MAX_NEWS_AGE_HOURS` | `24` | свежесть новостей |
 | `KEYWORDS` | см. config.py | тематический фильтр |

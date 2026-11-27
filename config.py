@@ -25,6 +25,7 @@ class Config:
     MAX_NEWS_AGE_HOURS: int
     CHECK_INTERVAL_MINUTES: int
     TEXT_HOOK_ENABLED: bool
+    LLM_FILTER_ENABLED: bool
     PENDING_JSON_PATH: str
     CANDIDATES_PER_RUN: int
     MAX_PENDING: int
@@ -76,6 +77,10 @@ class Config:
             MAX_NEWS_AGE_HOURS=int(max_age_raw),
             CHECK_INTERVAL_MINUTES=int(interval_raw),
             TEXT_HOOK_ENABLED=(os.getenv("TEXT_HOOK_ENABLED") or "1")
+            .strip()
+            .lower()
+            in ("1", "true", "yes", "on"),
+            LLM_FILTER_ENABLED=(os.getenv("LLM_FILTER_ENABLED") or "1")
             .strip()
             .lower()
             in ("1", "true", "yes", "on"),

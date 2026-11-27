@@ -33,6 +33,7 @@ jobs:
           RSS_URLS: "https://vc.ru/rss/all,https://habr.com/ru/rss/news/?fl=ru"
           IMAGE_MODE: "rss"
           TEXT_HOOK_ENABLED: "1"
+          LLM_FILTER_ENABLED: "1"
           CHECK_INTERVAL_MINUTES: "0"  # один прогон и выход
           LOG_LEVEL: "INFO"
         run: python main.py
