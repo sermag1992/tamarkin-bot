@@ -24,8 +24,8 @@ from text_hook import HookWriter
 
 logger = logging.getLogger(__name__)
 
-PUBLISH_PREFIXES = ("публику", "опублику", "пост", "publish")
-SKIP_PREFIXES = ("пропусти", "скип", "skip", "нет")
+PUBLISH_PREFIXES = ("публику", "опубли", "запост", "пост", "publish")
+SKIP_PREFIXES = ("пропусти", "скип", "skip", "мимо", "нет")
 
 HELP_TEXT = (
     "Бот на связи ✅\n\n"
@@ -33,8 +33,9 @@ HELP_TEXT = (
     "Под каждой — кнопки:\n"
     "✅ Опубликовать — пост уйдёт в канал\n"
     "⏭ Пропустить — уберу из очереди\n\n"
-    "Можно и словами: «публикуй» (все из очереди), "
-    "«публикуй 2» (конкретная), «пропустить 1»."
+    "Можно и словами: «опубликовать» или «публикуй» (все из очереди), "
+    "«опубликовать 2» (конкретная), «пропустить 1».\n\n"
+    "Реакция — до ~15 минут (я проверяю ленты и твои команды по расписанию)."
 )
 
 
@@ -52,20 +53,30 @@ def save_json_file(path: str, data: Any) -> None:
 
 
 def parse_command(text: str) -> Tuple[Optional[str], Optional[int]]:
-    """Разбор команды владельца. Возвращает (действие, номер|None)."""
+    """Разбор команды владельца: действие ищется в любом месте фразы.
+    «опубликовать», «давай опубликуем 3», «Пропустить 1!» — всё понимается.
+    Возвращает (действие, номер|None)."""
     t = (text or "").strip().lower()
     if not t:
         return None, None
     if t.startswith("/start"):
         return "start", None
-    words = re.split(r"[\s,!?]+", t)
-    first = words[0] if words else ""
-    digits = re.search(r"\d+", " ".join(words[1:]))
+    words = [w for w in re.split(r"[\s,!?]+", t) if w]
+    if not words:
+        return None, None
+    digits = re.search(r"\d+", t)
     num = int(digits.group()) if digits else None
-    if any(first.startswith(p) for p in PUBLISH_PREFIXES):
-        return "publish", num
-    if any(first.startswith(p) for p in SKIP_PREFIXES):
-        return "skip", num
+    # «не публикуй» — отказ от действия, но «не нравится, пропусти 2» — команда
+    if len(words) > 1 and words[0] == "не" and any(
+        words[1].startswith(p) for p in PUBLISH_PREFIXES + SKIP_PREFIXES
+    ):
+        return None, None
+    for w in words:
+        if any(w.startswith(p) for p in PUBLISH_PREFIXES):
+            return "publish", num
+    for w in words:
+        if any(w.startswith(p) for p in SKIP_PREFIXES):
+            return "skip", num
     return None, None
 
 
@@ -294,7 +305,7 @@ async def _handle_message(
         await bot.send_message(
             chat_id=chat_id,
             text="Не понял команду. Жми кнопки под новостью или пиши "
-            "«публикуй» / «публикуй 2» / «пропустить 1».",
+            "«опубликовать» / «опубликовать 2» / «пропустить 1».",
         )
 
 
