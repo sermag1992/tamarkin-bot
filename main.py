@@ -93,10 +93,10 @@ async def run_once(session: aiohttp.ClientSession, config: Config) -> None:
             max_age_hours=config.MAX_NEWS_AGE_HOURS,
         )
         fresh = [i for i in news if i.news_hash not in pending.hashes()]
-        # Семантический фильтр: LLM одним запросом отсекает нерелевантное
-        # ДО отправки владельцу
+        # Семантический фильтр: LLM одним запросом оценивает ВСЕ свежие новости
+        # (до 30) и отсекает нерелевантные ДО отправки владельцу
         if config.LLM_FILTER_ENABLED and fresh:
-            to_check = fresh[: config.CANDIDATES_PER_RUN * 3]
+            to_check = fresh[:30]
             try:
                 verdicts = await RelevanceChecker().check_batch(session, to_check)
                 relevant = []
