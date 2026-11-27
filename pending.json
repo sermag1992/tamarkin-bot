@@ -24,5 +24,44 @@
     "kind": "photo",
     "msg_id": 24,
     "sent_at": "2026-11-27T03:25:01.571814+00:00"
+  },
+  {
+    "id8": "04fdf613",
+    "hash": "04fdf613a3a544f5d4222a872326d1a15d11b963339179b348bd22e6ba8b6cbc",
+    "title": "Каждый третий россиянин использует ИИ для решения рабочих задач",
+    "link": "https://www.sostav.ru/publication/kazhdyj-tretij-rossiyanin-ispolzuet-ii-dlya-resheniya-rabochikh-zadach-88955.html",
+    "summary": "Чаще всего технологиям поручают сбор и анализ данных",
+    "image_url": "https://www.sostav.ru/images/news/2026/11/27/preview/88955_st.jpg",
+    "chat_id": 458668130,
+    "num": 3,
+    "kind": "photo",
+    "msg_id": 25,
+    "sent_at": "2026-11-27T03:36:10.019356+00:00"
+  },
+  {
+    "id8": "20abe2d4",
+    "hash": "20abe2d4a3d35ed5118faf47c825d8b3fb8f0685cb064bad6ce6230931527698",
+    "title": "Бизнес-образование 2027: почему бизнесу больше не нужны просто знания?",
+    "link": "https://www.sostav.ru/publication/biznes-obrazovanie-2027-pochemu-biznesu-bolshe-ne-nuzhny-prosto-znaniya-88929.html",
+    "summary": "Как изменятся требования к бизнес-школам, преподавателям и образовательным программам в 2027 году",
+    "image_url": "https://www.sostav.ru/images/news/2026/11/26/preview/88929_st.jpg",
+    "chat_id": 458668130,
+    "num": 4,
+    "kind": "photo",
+    "msg_id": 26,
+    "sent_at": "2026-11-27T03:36:14.348262+00:00"
+  },
+  {
+    "id8": "1096f8d2",
+    "hash": "1096f8d29d0738e00abbc98b7e50cb759b9aadb8b25433cbf85d7fb05e87f83f",
+    "title": "Красиво, но незаметно: почему хороший креатив не работает",
+    "link": "https://www.sostav.ru/publication/krasivo-no-nezametno-pochemu-khoroshij-kreativ-ne-rabotaet-88946.html",
+    "summary": "Креативность помогает запомнить рекламу, но не гарантирует, что аудитория заметит ее и свяжет его с брендом",
+    "image_url": "https://www.sostav.ru/images/news/2026/11/26/preview/88946_st.jpg",
+    "chat_id": 458668130,
+    "num": 5,
+    "kind": "photo",
+    "msg_id": 27,
+    "sent_at": "2026-11-27T03:36:17.913143+00:00"
   }
 ]
