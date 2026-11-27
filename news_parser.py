@@ -1,4 +1,5 @@
 import hashlib
+import html as html_mod
 import json
 import logging
 import re
@@ -63,6 +64,7 @@ def _hash_title(title: str) -> str:
 
 def _clean_html(text: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
+    text = html_mod.unescape(text)  # &#039; → ' и т.п.
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -133,8 +135,9 @@ def _is_recent(published_at: Optional[str], max_hours: int) -> bool:
 
 
 def _matches_filter(title: str, summary: str, keywords: List[str], stopwords: List[str]) -> bool:
+    """Пустой список keywords = фильтр по ключевым словам отключён (решает LLM)."""
     text = f"{title} {summary}".lower()
-    if not any(kw.lower() in text for kw in keywords):
+    if keywords and not any(kw.lower() in text for kw in keywords):
         return False
     if any(sw.lower() in text for sw in stopwords):
         return False
@@ -147,7 +150,9 @@ async def _fetch_rss_text(session: aiohttp.ClientSession, rss_url: str) -> str:
         rss_url, headers=RSS_HEADERS, timeout=aiohttp.ClientTimeout(total=30)
     ) as response:
         response.raise_for_status()
-        return (await response.read()).decode("utf-8", errors="replace")
+        # response.text() сам учитывает charset из заголовка (например,
+        # 4PDA отдаёт ленту в windows-1251)
+        return await response.text()
 
 
 async def fetch_news(

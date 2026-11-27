@@ -30,10 +30,11 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-          RSS_URLS: "https://vc.ru/rss/all,https://habr.com/ru/rss/news/?fl=ru"
+          RSS_URLS: "https://www.sostav.ru/rss/,https://4pda.to/feed/"
           IMAGE_MODE: "rss"
           TEXT_HOOK_ENABLED: "1"
           LLM_FILTER_ENABLED: "1"
+          KEYWORDS: ""  # пусто — релевантность решает LLM-фильтр, затем владелец
           CHECK_INTERVAL_MINUTES: "0"  # один прогон и выход
           LOG_LEVEL: "INFO"
         run: python main.py
